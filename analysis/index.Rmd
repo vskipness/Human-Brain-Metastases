@@ -1,11 +1,19 @@
 ---
 title: "Home"
 site: workflowr::wflow_site
-output:
+date: "Jun 6 2024"
+output: 
   workflowr::wflow_html:
     toc: false
-editor_options:
+editor_options: 
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+### snRNA-seq overview
+merge human brain metastasis sample files and identify major cell populations
+[link](snRNA-seq_overview.html)
+
+
+
+
+
