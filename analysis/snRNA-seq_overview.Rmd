@@ -1,0 +1,304 @@
+---
+title: "snRNA-seq overview"
+author: "Vanessa Skipness"
+date: "Jun 6 2024"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+## Load Packages
+```{r Load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(purrr)
+  library(here)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  #library(runSeurat3)
+  #library("ExploreSCdataSeurat3")
+  library(scran)
+  library(pheatmap)
+  library(CellMixS)
+  library(muscat)
+  library(edgeR)
+  library(patchwork)
+  library(ggplot2)
+  library(dplyr)
+  library(ggrepel)
+  library(circlize)
+})
+
+```
+
+## set dir and read input data
+
+```{r load and merge files}
+
+basedir <- here()
+
+CreateSampleFile <- function(filepaths, samplename){
+  a <- readRDS(file = paste0(basedir, filepaths[1]))
+  b <- readRDS(file = paste0(basedir, filepaths[2]))
+  x <- merge(a, b)
+  return(x)
+}
+
+#hbt_89
+filepaths <- c("/data/324341_01-1_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds",
+"/data/324341_02-2_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds")
+hbt_89 <- CreateSampleFile(filepaths, "hbt_89")
+
+#hbt166
+filepaths <- c("/data/324341_03-3_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds",
+"/data/324341_04-4_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds")
+hbt_166 <- CreateSampleFile(filepaths, "hbt_166")
+
+#hbt265
+filepaths <- c("/data/324341_05-5_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds",
+"/data/324341_06-6_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds")
+hbt_265 <- CreateSampleFile(filepaths, "hbt_265")
+
+#hbt266
+filepaths <- c("/data/324341_07-7_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds",
+"/data/324341_08-8_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds")
+hbt_266 <- CreateSampleFile(filepaths, "hbt_266")
+
+rm(filepaths)
+```
+
+##process input data
+
+```{r add sample info}
+hbt_89$sample <- "BrM-Lung-1"
+hbt_166$sample <- "BrM-Breast-1"
+hbt_265$sample <- "BrM-Melanoma-1"
+hbt_266$sample <- "BrM-NET"
+
+hbt_89$ID <- "hbt_89"
+hbt_166$ID <- "hbt_166"
+hbt_265$ID <- "hbt_265"
+hbt_266$ID <- "hbt_266"
+```
+
+## merge files and visualization
+
+```{r merge samples}
+samples.combined <- merge(hbt_89, y = c(hbt_166, hbt_265, hbt_266), add.cell.ids = c("hbt_89", "hbt_166", "hbt_265", "hbt_266"), project = "samples_combined")
+
+processing <- function(x){
+  x <- NormalizeData(object = x)
+  x <- FindVariableFeatures(object = x)
+  x <- ScaleData(object = x, verbose = FALSE)
+  x <- RunPCA(object = x, npcs = 30, verbose = FALSE)
+  #ElbowPlot(x, ndims = 30)
+  x <- FindNeighbors(object = x, reduction = "pca", dims = 1:30)
+  res <- c(0.6,0.4,0.2,0.1)
+  for (i in 1:length(res)) {
+    x <- FindClusters(object = x, resolution = res[i],
+                         random.seed = 1234)
+  }
+  x <- RunUMAP(object = x, reduction = "pca", dims = 1:30)
+  return(x)
+}
+
+samples.combined <- processing(samples.combined)
+```
+
+
+```{r visualize samples, fig.height=5, fig.width=5}
+Idents(samples.combined) <- samples.combined$sample
+samples.combined$sample <- factor(samples.combined$sample, levels = c("BrM-Lung-1", "BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET"))
+
+
+colSample <- c("hotpink", "darkorchid4", "royalblue1", "aquamarine4")
+names(colSample) <- c("BrM-Lung-1", "BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET")
+
+#UMAP grouped by samples
+DimPlot(samples.combined, reduction = "umap", cols=colSample, group.by = "sample",
+        shuffle=T,pt.size=0.4, )+
+  theme_void()
+
+#UMAP showing clusters 
+Idents(samples.combined) <- samples.combined$RNA_snn_res.0.1
+DimPlot(samples.combined, reduction = "umap", label = T,
+        shuffle=T,pt.size=0.4, )+
+  theme_void()
+
+```
+
+## identification of major cell types
+
+```{r find markers , include = TRUE , eval = FALSE}
+table(samples.combined$RNA_snn_res.0.1, samples.combined$sample)
+
+Idents(samples.combined) <- samples.combined$RNA_snn_res.0.1
+all.markers <- FindAllMarkers(samples.combined, min.pct = 0.25, only.pos = TRUE)
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 30, wt = avg_log2FC) -> top30
+top30
+```
+
+
+```{r featureplots for annotation of major celltypes, fig.height=4, fig.width=4.5}
+genes <- data.frame(gene = rownames(samples.combined)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+selGenes <- data.frame(geneID = c("KRT8", "PMEL", "TPH1", "ERBB2", "PTPRC", "PDGFRB", "EGFL7", "MOG", "CHD5", "GFAP", "KRT7")) %>%
+  left_join(., genes, by = "geneID")
+
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(samples.combined, features = selGenes$gene[i], cols = c("grey", "red"), pt.size = 1, max.cutoff = 4) +
+    theme_void() + 
+    labs(title = selGenes$geneID[i]) + 
+    ggtitle(selGenes$geneID[i]) + 
+    theme(plot.title = element_text(hjust = 0.5, size = 25)))
+}
+```
+
+```{r hematopoietic vs non, fig.height=4, fig.width=8}
+
+#Breast
+h <- 71+3625+30+436
+t <- 3367
+nh <- 75 + 467 + 301 +134 +74 +12
+n <- c(h, nh, t)
+df <- data.frame(category = c("hematopietic", "non-hematopoietic", "tumor"), Freq = n, hsize = 1.5)
+hsize = 1.5
+
+plot1 <- ggplot(df, aes(x = hsize, y = Freq, fill = category)) + 
+ scale_fill_brewer(palette = 'Purples') +
+  geom_col(color = "grey34") +
+  #geom_text(aes(label = Freq), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() + theme(legend.position = "none") +
+  ggtitle("BrM-Breast-1") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 10)) 
+
+
+#Lung-1
+h <- 47 + 5982 + 726 + 1011
+t <- 1371
+nh <- 158 + 690 + 134 + 334 + 112 + 300
+n <- c(h, nh, t)
+n
+df <- data.frame(category = c("hematopietic", "non-hematopoietic", "tumor"), Freq = n, hsize = 1.5)
+hsize = 1.5
+
+plot2 <- ggplot(df, aes(x = hsize, y = Freq, fill = category)) + 
+  scale_fill_brewer(palette = 'Purples') +
+  geom_col(color = "grey34") +
+  #geom_text(aes(label = Freq), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() + theme(legend.position = "none") +
+  ggtitle("BrM-Lung-1") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 10)) 
+
+#Melanoma-1
+h <- 201 + 2368 + 448 + 1360
+t <- 2732
+nh <- 427 + 771  + 10 + 800 + 112 +29
+n <- c(h, nh, t)
+df <- data.frame(category = c("hematopietic", "non-hematopoietic", "tumor"), Freq = n, hsize = 1.5)
+hsize = 1.5
+
+plot3 <- ggplot(df, aes(x = hsize, y = Freq, fill = category)) + 
+  scale_fill_brewer(palette = 'Purples') +
+  geom_col(color = "grey34") +
+  #geom_text(aes(label = Freq), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() + theme(legend.position = "none") +
+  ggtitle("BrM-Melanoma-1") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 10)) 
+
+#NET
+h <- 10 + 883 + 18 + 97 
+t <- 10365
+nh <- 69 + 960 + 14 +40 + 9 +135
+n <- c(h, nh, t)
+n
+df <- data.frame(category = c("hematopietic", "non-hematopoietic", "tumor"), Freq = n, hsize = 1.5)
+hsize = 1.5
+
+plot4 <- ggplot(df, aes(x = hsize, y = Freq, fill = category)) + 
+  scale_fill_brewer(palette = 'Purples') +
+  geom_col(color = "grey34") +
+  #geom_text(aes(label = Freq), position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  xlim(c(0.2, hsize + 0.5)) +
+  theme_void() +
+  ggtitle("BrM-NET") + 
+  theme(plot.title = element_text(hjust = 0.5, size = 10)) 
+  
+plot1 + plot2 + plot3 + plot4 + plot_layout(ncol = 4)
+
+
+```
+
+## subsetting fibroblast and immune cell clusters
+
+```{r Thorough identification of fibroblasts and immune cells, fig.height=6, fig.width=8}
+Idents(samples.combined) <- samples.combined$RNA_snn_res.0.1
+
+genes <- data.frame(gene = rownames(samples.combined)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("PTPRC", "CD163", "ADAP2", "CD14", "MS4A1", "BANK1", "MZB1", "IGHG1", "CD2", "BCL11B", "PDGFRB", "CARMN", "EGFL7", "VWF", "PRUNE2", "MOG", "ARPP21", "CHD5", "PTPRZ1", "GFAP", "HSPA1A", "HSPA1B", "ERBB2", "KRT7", "KRT8", "PMEL", "TPH1")) %>%
+  left_join(., genes, by = "geneID")       
+
+DotPlot(samples.combined, assay = "RNA", features = (selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = (selGenes$gene), labels = (selGenes$geneID)) +
+  xlab("") + ylab("")
+```
+
+Fibroblasts = cluster 5
+Immune cells:
+Myeloid = cluster 1,2,4
+T cells = 7
+Plasma cells = 10
+
+```{r subsetting of immune cells and fibroblasts}
+Idents(samples.combined) <- samples.combined$RNA_snn_res.0.1
+immunecells <- subset(samples.combined, idents = c("1", "2", "4", "7", "10"))
+fibroblasts <- subset(samples.combined, idents = c("5"))
+```
+
+## saving files
+
+```{r save files}
+saveRDS(hbt_89, file = paste0(basedir, "/data/hbt_89.rds"))
+saveRDS(hbt_166, file = paste0(basedir, "/data/hbt_166.rds"))
+saveRDS(hbt_265, file = paste0(basedir, "/data/hbt_265.rds"))
+saveRDS(hbt_266, file = paste0(basedir, "/data/hbt_266.rds"))
+saveRDS(samples.combined, file = paste0(basedir, "/data/samples_combined.rds"))
+saveRDS(immunecells, file = paste0(basedir, "/data/immune.rds"))
+saveRDS(fibroblasts, file = paste0(basedir, "/data/fibroblasts.rds"))
+```
+
+## Session Info
+
+```{r Session Info}
+sessionInfo()
+date()
+```
