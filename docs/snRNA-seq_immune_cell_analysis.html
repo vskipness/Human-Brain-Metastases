@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Vanessa Skipness" />
+
+
+<title>snRNA-seq immune cell analysis</title>
+
+<script src="site_libs/header-attrs-2.26/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/cosmo.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.13.2/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/textmate.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/main/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Human Brain Metastases</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">snRNA-seq immune cell analysis</h1>
+<h4 class="author">Vanessa Skipness</h4>
+<h4 class="date">Jun 6 2024</h4>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span>
+workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span
+class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2024-06-06
+</p>
+<p>
+<strong>Checks:</strong> <span
+class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>Human Brain Metastases/</code>
+<span class="glyphicon glyphicon-question-sign" aria-hidden="true"
+title="This is the local directory in which the code in this file was executed.">
+</span>
+</p>
+<p>
+This reproducible <a href="https://rmarkdown.rstudio.com">R Markdown</a>
+analysis was created with <a
+  href="https://github.com/workflowr/workflowr">workflowr</a> (version
+1.7.1). The <em>Checks</em> tab describes the reproducibility checks
+that were applied when the results were created. The <em>Past
+versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges">
+<span class="glyphicon glyphicon-exclamation-sign text-danger"
+aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted
+changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R
+Markdown file created these results, you’ll want to first commit it to
+the Git repo. If you’re still working on the analysis, you can ignore
+this warning. When you’re finished, you can run
+<code>wflow_publish</code> to commit the R Markdown file and build the
+HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the
+global environment can affect the analysis in your R Markdown file in
+unknown ways. For reproduciblity it’s best to always run the code in an
+empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20240606code">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Seed:</strong>
+<code>set.seed(20240606)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed20240606code"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(20240606)</code> was run prior to running
+the code in the R Markdown file. Setting a seed ensures that any results
+that rely on randomness, e.g. subsampling or permutations, are
+reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Session information:</strong>
+recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package
+versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be
+confident that you successfully produced the results during this
+run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr
+project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomvskipnessHumanBrainMetastasestree7315a0cc793ed50afc1359f38d6e26b62233eca1targetblank7315a0ca">
+<span class="glyphicon glyphicon-ok text-success"
+aria-hidden="true"></span> <strong>Repository version:</strong>
+<a href="https://github.com/vskipness/Human-Brain-Metastases/tree/7315a0cc793ed50afc1359f38d6e26b62233eca1" target="_blank">7315a0c</a>
+</a>
+</p>
+</div>
+<div
+id="strongRepositoryversionstrongahrefhttpsgithubcomvskipnessHumanBrainMetastasestree7315a0cc793ed50afc1359f38d6e26b62233eca1targetblank7315a0ca"
+class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development
+and connecting the code version to the results is critical for
+reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version
+<a href="https://github.com/vskipness/Human-Brain-Metastases/tree/7315a0cc793ed50afc1359f38d6e26b62233eca1" target="_blank">7315a0c</a>.
+See the <em>Past versions</em> tab to see a history of the changes made
+to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for
+the analysis have been committed to Git prior to generating the results
+(you can use <code>wflow_publish</code> or
+<code>wflow_git_commit</code>). workflowr only checks the R Markdown
+file, but you know if there are other scripts or data files that it
+depends on. Below is the status of the Git repository when the results
+were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .DS_Store
+    Ignored:    .Rproj.user/
+
+Untracked files:
+    Untracked:  analysis/snRNA-seq_immune_cell_analysis.Rmd
+
+Unstaged changes:
+    Modified:   analysis/snRNA-seq_overview.Rmd
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not
+included in this status report because it is ok for generated content to
+have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with
+<code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<pre class="r"><code>options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c(&quot;png&quot;, &quot;pdf&quot;))
+seed &lt;- 1234</code></pre>
+<div id="load-packages" class="section level2">
+<h2>load packages</h2>
+<pre class="r"><code>suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(purrr)
+  library(here)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  #library(runSeurat3)
+  #library(&quot;ExploreSCdataSeurat3&quot;)
+  library(scran)
+  library(pheatmap)
+  library(CellMixS)
+  library(muscat)
+  library(edgeR)
+  library(patchwork)
+  library(ggplot2)
+  library(dplyr)
+  library(ggrepel)
+  library(circlize)
+})</code></pre>
+</div>
+<div id="set-dir-and-read-input-data" class="section level2">
+<h2>set dir and read input data</h2>
+<pre class="r"><code>basedir &lt;- here()
+immune &lt;- readRDS(file = paste0(basedir, &quot;/data/immune.rds&quot;))</code></pre>
+</div>
+<div id="immune-cell-overview-before-integration"
+class="section level2">
+<h2>immune cell overview before integration</h2>
+<pre class="r"><code>Idents(immune) &lt;- immune$sample
+immune$sample &lt;- factor(immune$sample, levels = c(&quot;BrM-Lung-1&quot;, &quot;BrM-Breast-1&quot;, &quot;BrM-Melanoma-1&quot;, &quot;BrM-NET&quot;))
+
+table(immune$sample)</code></pre>
+<pre><code>
+    BrM-Lung-1   BrM-Breast-1 BrM-Melanoma-1        BrM-NET 
+          8288           4122           4281           1083 </code></pre>
+<pre class="r"><code>colSample &lt;- c(&quot;hotpink&quot;, &quot;darkorchid4&quot;, &quot;royalblue1&quot;, &quot;aquamarine4&quot;)
+names(colSample) &lt;- c(&quot;BrM-Lung-1&quot;, &quot;BrM-Breast-1&quot;, &quot;BrM-Melanoma-1&quot;, &quot;BrM-NET&quot;)
+
+DimPlot(immune, reduction = &quot;umap&quot;, cols=colSample, group.by = &quot;sample&quot;,
+        shuffle=T,pt.size=0.6, )+
+  theme_void()</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/overview%20of%20immune%20cells-1.png" width="672" style="display: block; margin: auto;" /></p>
+</div>
+<div id="integration-of-immune-cells-across-patients"
+class="section level2">
+<h2>integration of immune cells across patients</h2>
+<pre class="r"><code>sample.list &lt;- SplitObject(immune, split.by = &quot;sample&quot;)
+sample.list &lt;- lapply(X = sample.list, FUN = function(x) {
+    x &lt;- NormalizeData(x)
+    x &lt;- FindVariableFeatures(x, selection.method = &quot;vst&quot;, nfeatures = 2000)
+})
+
+features &lt;- SelectIntegrationFeatures(object.list = sample.list)
+sample.anchors &lt;- FindIntegrationAnchors(object.list = sample.list, anchor.features = features)
+immune.integrated &lt;- IntegrateData(anchorset = sample.anchors)
+DefaultAssay(immune.integrated) &lt;- &quot;integrated&quot;
+
+x &lt;- ScaleData(immune.integrated, verbose = FALSE)
+x &lt;- RunPCA(x, npcs = 30, verbose = FALSE)
+x &lt;- RunUMAP(x, reduction = &quot;pca&quot;, dims = 1:30)
+immune.integrated &lt;- FindNeighbors(x, reduction = &quot;pca&quot;, dims = 1:30)
+res &lt;- c(0.05, 0.1,0.2,0.4,0.6,0.8, 1, 1.2)
+for (i in 1:length(res)) {
+ immune.integrated &lt;- FindClusters(object = immune.integrated, resolution = res[i], random.seed = 1234)
+}</code></pre>
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9717
+Number of communities: 5
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9521
+Number of communities: 8
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.9239
+Number of communities: 10
+Elapsed time: 3 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8883
+Number of communities: 14
+Elapsed time: 2 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8628
+Number of communities: 15
+Elapsed time: 2 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8417
+Number of communities: 17
+Elapsed time: 2 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8239
+Number of communities: 20
+Elapsed time: 2 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 17774
+Number of edges: 694024
+
+Running Louvain algorithm...
+Maximum modularity in 10 random starts: 0.8086
+Number of communities: 21
+Elapsed time: 2 seconds</code></pre>
+<pre class="r"><code>rm(x, sample.anchors)</code></pre>
+</div>
+<div id="visualization-and-annotation-of-immune-cells"
+class="section level2">
+<h2>visualization and annotation of immune cells</h2>
+<pre class="r"><code>DefaultAssay(immune.integrated) &lt;- &quot;integrated&quot;
+Idents(immune.integrated) &lt;- immune.integrated$sample
+immune.integrated$sample &lt;- factor(immune.integrated$sample, levels = c(&quot;BrM-Lung-1&quot;, &quot;BrM-Breast-1&quot;, &quot;BrM-Melanoma-1&quot;, &quot;BrM-NET&quot;))
+
+DimPlot(immune.integrated, reduction = &quot;umap&quot;, cols=colSample, group.by = &quot;sample&quot;,
+        shuffle=T,pt.size=0.4)+
+  theme_void()</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/assign%20colors%20and%20visualize%20immune%20cells-1.png" width="576" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>DimPlot(immune.integrated, reduction = &quot;umap&quot;, cols=colSample, split.by = &quot;sample&quot;,
+        shuffle=T,pt.size=0.4)+
+  theme_void()</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/assign%20colors%20and%20visualize%20immune%20cells-2.png" width="576" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>Idents(immune.integrated) &lt;- immune.integrated$integrated_snn_res.0.1
+DimPlot(immune.integrated, reduction = &quot;umap&quot;, label = T,
+        shuffle=T,pt.size=0.4, )+
+  theme_void()</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/assign%20colors%20and%20visualize%20immune%20cells-3.png" width="576" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>Idents(immune.integrated) &lt;- immune.integrated$RNA_snn_res.0.1
+all.markers &lt;- FindAllMarkers(immune.integrated, min.pct = 0.25, only.pos = TRUE)
+all.markers %&gt;%
+    group_by(cluster) %&gt;%
+    top_n(n = 30, wt = avg_log2FC) -&gt; top30
+
+top30</code></pre>
+<pre><code># A tibble: 150 × 7
+# Groups:   cluster [5]
+   p_val avg_log2FC pct.1 pct.2 p_val_adj cluster gene                      
+   &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;fct&gt;   &lt;chr&gt;                     
+ 1     0       1.99 0.014 0.873         0 1       ENSG00000181374.CCL13     
+ 2     0       1.99 0.003 0.816         0 1       ENSG00000138684.IL21      
+ 3     0       2.18 0.009 0.818         0 1       ENSG00000171804.WDR87     
+ 4     0       2.22 0.005 0.776         0 1       ENSG00000287001.AC010624.5
+ 5     0       2.00 0.002 0.773         0 1       ENSG00000250509.AC034213.1
+ 6     0       1.76 0.003 0.773         0 1       ENSG00000111981.ULBP1     
+ 7     0       1.73 0.147 0.914         0 1       ENSG00000204389.HSPA1A    
+ 8     0       1.96 0.006 0.766         0 1       ENSG00000125965.GDF5      
+ 9     0       1.85 0.002 0.741         0 1       ENSG00000150275.PCDH15    
+10     0       1.74 0.007 0.687         0 1       ENSG00000130822.PNCK      
+# ℹ 140 more rows</code></pre>
+<pre class="r"><code>immune.integrated$celltype &lt;- &quot;-&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;0&quot;)] &lt;- &quot;Mφ&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;1&quot;)] &lt;- &quot;T cells/NK cells&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;2&quot;)] &lt;- &quot;MDMs&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;3&quot;)] &lt;- &quot;Plasma cells&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;4&quot;)] &lt;- &quot;Neutrophils&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;5&quot;)] &lt;- &quot;Proliferating Mφ&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;6&quot;)] &lt;- &quot;B cells&quot;
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == &quot;7&quot;)] &lt;- &quot;Dendritic cells&quot;
+
+immune.integrated$celltype &lt;- factor(immune.integrated$celltype, levels = c(&quot;MDMs&quot;, &quot;Proliferating Mφ&quot;, &quot;Mφ&quot;, &quot;Neutrophils&quot;, &quot;Dendritic cells&quot;, &quot;T cells/NK cells&quot;, &quot;B cells&quot;, &quot;Plasma cells&quot;))
+
+Idents(immune.integrated) &lt;- immune.integrated$celltype
+
+colCelltype &lt;- c(&quot;royalblue4&quot;, &quot;royalblue1&quot;, &quot;steelblue1&quot;, &quot;aquamarine4&quot;, &quot;lightpink1&quot;, &quot;palevioletred3&quot;, &quot;mediumpurple1&quot;, &quot;darkorchid4&quot; )
+names(colCelltype) &lt;- c(&quot;MDMs&quot;, &quot;Proliferating Mφ&quot;, &quot;Mφ&quot;, &quot;Neutrophils&quot;, &quot;Dendritic cells&quot;, &quot;T cells/NK cells&quot;, &quot;B cells&quot;, &quot;Plasma cells&quot;)
+
+DimPlot(immune.integrated, reduction = &quot;umap&quot;, cols=colCelltype, group.by = &quot;celltype&quot;,
+        shuffle=T,pt.size=0.4)+
+  theme_void()</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/immune%20cell%20annotation%20and%20color%20assignment-1.png" width="480" style="display: block; margin: auto;" /></p>
+</div>
+<div id="dotplot-of-immune-cells" class="section level2">
+<h2>dotplot of immune cells</h2>
+<pre class="r"><code>Idents(immune.integrated) &lt;- immune.integrated$celltype
+DefaultAssay(immune.integrated) &lt;- &quot;RNA&quot;
+genes &lt;- data.frame(gene = rownames(immune.integrated)) %&gt;%
+  mutate(geneID = gsub(&quot;^.*\\.&quot;, &quot;&quot;, gene))
+
+selGenes &lt;- data.frame(geneID = c(&quot;PTPRC&quot;, &quot;CD14&quot;, &quot;FCGR3A&quot;, &quot;CD163&quot;, &quot;MS4A6A&quot;, &quot;MS4A7&quot; , &quot;HLA-DRA&quot;,  &quot;ITGAX&quot;, &quot;CCL3&quot;, &quot;CCL4&quot;, &quot;MKI67&quot;, &quot;FOSB&quot;, &quot;NR4A2&quot;, &quot;IL7R&quot;,  &quot;CD2&quot;, &quot;MS4A1&quot;, &quot;BANK1&quot;, &quot;CD11C&quot;, &quot;MZB1&quot;, &quot;IGHG1&quot;)) %&gt;%
+  left_join(., genes, by = &quot;geneID&quot;)   
+
+##took out MERTK, CD38
+
+DotPlot(immune.integrated, assay = &quot;RNA&quot;, features = (selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = (selGenes$gene), labels = (selGenes$geneID)) +
+  xlab(&quot;&quot;) + ylab(&quot;&quot;)</code></pre>
+<p><img src="figure/snRNA-seq_immune_cell_analysis.Rmd/dot%20plot%20immune%20cells-1.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+<div id="saving-file" class="section level2">
+<h2>saving file</h2>
+<pre class="r"><code>saveRDS(immune.integrated, file = paste0(basedir, &quot;/data/immune_integrated.rds&quot;))</code></pre>
+</div>
+<div id="session-info" class="section level2">
+<h2>session info</h2>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.3.2 (2023-10-31)
+Platform: aarch64-apple-darwin20 (64-bit)
+Running under: macOS Ventura 13.0
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.3-arm64/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.3-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.11.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats4    stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] circlize_0.4.16             ggrepel_0.9.5               patchwork_1.2.0            
+ [4] edgeR_4.0.16                limma_3.58.1                muscat_1.16.0              
+ [7] CellMixS_1.18.0             kSamples_1.2-10             SuppDists_1.1-9.7          
+[10] pheatmap_1.0.12             scran_1.30.2                scater_1.30.1              
+[13] scuttle_1.12.0              ggsci_3.0.3                 viridis_0.6.5              
+[16] viridisLite_0.4.2           RColorBrewer_1.1-3          SingleCellExperiment_1.24.0
+[19] SummarizedExperiment_1.32.0 Biobase_2.62.0              GenomicRanges_1.54.1       
+[22] GenomeInfoDb_1.38.8         IRanges_2.36.0              S4Vectors_0.40.2           
+[25] BiocGenerics_0.48.1         MatrixGenerics_1.14.0       matrixStats_1.3.0          
+[28] here_1.0.1                  magrittr_2.0.3              Seurat_5.1.0               
+[31] SeuratObject_5.0.2          sp_2.1-4                    lubridate_1.9.3            
+[34] forcats_1.0.0               stringr_1.5.1               dplyr_1.1.4                
+[37] purrr_1.0.2                 readr_2.1.5                 tidyr_1.3.1                
+[40] tibble_3.2.1                ggplot2_3.5.1               tidyverse_2.0.0            
+
+loaded via a namespace (and not attached):
+  [1] fs_1.6.4                  spatstat.sparse_3.0-3     bitops_1.0-7             
+  [4] httr_1.4.7                doParallel_1.0.17         numDeriv_2016.8-1.1      
+  [7] backports_1.4.1           tools_4.3.2               sctransform_0.4.1        
+ [10] utf8_1.2.4                R6_2.5.1                  mgcv_1.9-1               
+ [13] lazyeval_0.2.2            uwot_0.2.2                GetoptLong_1.0.5         
+ [16] withr_3.0.0               prettyunits_1.2.0         gridExtra_2.3            
+ [19] progressr_0.14.0          cli_3.6.2                 spatstat.explore_3.2-7   
+ [22] fastDummies_1.7.3         labeling_0.4.3            sass_0.4.9               
+ [25] mvtnorm_1.2-4             spatstat.data_3.0-4       blme_1.0-5               
+ [28] ggridges_0.5.6            pbapply_1.7-2             parallelly_1.37.1        
+ [31] rstudioapi_0.16.0         generics_0.1.3            shape_1.4.6.1            
+ [34] gtools_3.9.5              ica_1.0-3                 spatstat.random_3.2-3    
+ [37] Matrix_1.6-5              ggbeeswarm_0.7.2          fansi_1.0.6              
+ [40] abind_1.4-5               lifecycle_1.0.4           yaml_2.3.8               
+ [43] gplots_3.1.3.1            SparseArray_1.2.4         Rtsne_0.17               
+ [46] grid_4.3.2                promises_1.3.0            dqrng_0.3.2              
+ [49] crayon_1.5.2              miniUI_0.1.1.1            lattice_0.22-6           
+ [52] beachmat_2.18.1           cowplot_1.1.3             pillar_1.9.0             
+ [55] knitr_1.46                ComplexHeatmap_2.18.0     metapod_1.10.1           
+ [58] rjson_0.2.21              boot_1.3-30               corpcor_1.6.10           
+ [61] future.apply_1.11.2       codetools_0.2-20          leiden_0.4.3.1           
+ [64] glue_1.7.0                data.table_1.15.4         Rdpack_2.6               
+ [67] vctrs_0.6.5               png_0.1-8                 spam_2.10-0              
+ [70] gtable_0.3.5              cachem_1.0.8              xfun_0.43                
+ [73] rbibutils_2.2.16          S4Arrays_1.2.1            mime_0.12                
+ [76] survival_3.6-4            iterators_1.0.14          statmod_1.5.0            
+ [79] bluster_1.12.0            fitdistrplus_1.1-11       ROCR_1.0-11              
+ [82] nlme_3.1-164              pbkrtest_0.5.2            EnvStats_2.8.1           
+ [85] progress_1.2.3            RcppAnnoy_0.0.22          rprojroot_2.0.4          
+ [88] TMB_1.9.11                bslib_0.7.0               irlba_2.3.5.1            
+ [91] vipor_0.4.7               KernSmooth_2.23-22        colorspace_2.1-0         
+ [94] DESeq2_1.42.1             tidyselect_1.2.1          compiler_4.3.2           
+ [97] git2r_0.33.0              BiocNeighbors_1.20.2      DelayedArray_0.28.0      
+[100] plotly_4.10.4             caTools_1.18.2            scales_1.3.0             
+[103] remaCor_0.0.18            lmtest_0.9-40             digest_0.6.35            
+[106] goftest_1.2-3             presto_1.0.0              spatstat.utils_3.0-4     
+[109] minqa_1.2.6               variancePartition_1.32.5  rmarkdown_2.26           
+[112] aod_1.3.3                 RhpcBLASctl_0.23-42       XVector_0.42.0           
+[115] htmltools_0.5.8.1         pkgconfig_2.0.3           lme4_1.1-35.3            
+[118] sparseMatrixStats_1.14.0  highr_0.10                fastmap_1.1.1            
+[121] rlang_1.1.3               GlobalOptions_0.1.2       htmlwidgets_1.6.4        
+[124] shiny_1.8.1.1             DelayedMatrixStats_1.24.0 farver_2.1.2             
+[127] jquerylib_0.1.4           zoo_1.8-12                jsonlite_1.8.8           
+[130] BiocParallel_1.36.0       BiocSingular_1.18.0       RCurl_1.98-1.14          
+[133] GenomeInfoDbData_1.2.11   dotCall64_1.1-1           munsell_0.5.1            
+[136] Rcpp_1.0.12               reticulate_1.36.1         stringi_1.8.4            
+[139] zlibbioc_1.48.2           MASS_7.3-60.0.1           plyr_1.8.9               
+[142] parallel_4.3.2            listenv_0.9.1             deldir_2.0-4             
+[145] splines_4.3.2             tensor_1.5                hms_1.1.3                
+[148] locfit_1.5-9.9            igraph_2.0.3              spatstat.geom_3.2-9      
+[151] RcppHNSW_0.6.0            reshape2_1.4.4            ScaledMatrix_1.10.0      
+[154] evaluate_0.23             nloptr_2.0.3              tzdb_0.4.0               
+[157] foreach_1.5.2             httpuv_1.6.15             RANN_2.6.1               
+[160] polyclip_1.10-6           future_1.33.2             clue_0.3-65              
+[163] scattermore_1.2           rsvd_1.0.5                broom_1.0.5              
+[166] xtable_1.8-4              fANCOVA_0.6-1             RSpectra_0.16-1          
+[169] later_1.3.2               lmerTest_3.1-3            glmmTMB_1.1.9            
+[172] beeswarm_0.4.0            cluster_2.1.6             workflowr_1.7.1          
+[175] timechange_0.3.0          globals_0.16.3           </code></pre>
+<pre class="r"><code>date()</code></pre>
+<pre><code>[1] &quot;Thu Jun  6 17:23:11 2024&quot;</code></pre>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span>
+Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.3.2 (2023-10-31)
+Platform: aarch64-apple-darwin20 (64-bit)
+Running under: macOS Ventura 13.0
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.3-arm64/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.3-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.11.0
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+time zone: Europe/Zurich
+tzcode source: internal
+
+attached base packages:
+[1] stats4    stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+ [1] circlize_0.4.16             ggrepel_0.9.5               patchwork_1.2.0            
+ [4] edgeR_4.0.16                limma_3.58.1                muscat_1.16.0              
+ [7] CellMixS_1.18.0             kSamples_1.2-10             SuppDists_1.1-9.7          
+[10] pheatmap_1.0.12             scran_1.30.2                scater_1.30.1              
+[13] scuttle_1.12.0              ggsci_3.0.3                 viridis_0.6.5              
+[16] viridisLite_0.4.2           RColorBrewer_1.1-3          SingleCellExperiment_1.24.0
+[19] SummarizedExperiment_1.32.0 Biobase_2.62.0              GenomicRanges_1.54.1       
+[22] GenomeInfoDb_1.38.8         IRanges_2.36.0              S4Vectors_0.40.2           
+[25] BiocGenerics_0.48.1         MatrixGenerics_1.14.0       matrixStats_1.3.0          
+[28] here_1.0.1                  magrittr_2.0.3              Seurat_5.1.0               
+[31] SeuratObject_5.0.2          sp_2.1-4                    lubridate_1.9.3            
+[34] forcats_1.0.0               stringr_1.5.1               dplyr_1.1.4                
+[37] purrr_1.0.2                 readr_2.1.5                 tidyr_1.3.1                
+[40] tibble_3.2.1                ggplot2_3.5.1               tidyverse_2.0.0            
+
+loaded via a namespace (and not attached):
+  [1] fs_1.6.4                  spatstat.sparse_3.0-3     bitops_1.0-7             
+  [4] httr_1.4.7                doParallel_1.0.17         numDeriv_2016.8-1.1      
+  [7] backports_1.4.1           tools_4.3.2               sctransform_0.4.1        
+ [10] utf8_1.2.4                R6_2.5.1                  mgcv_1.9-1               
+ [13] lazyeval_0.2.2            uwot_0.2.2                GetoptLong_1.0.5         
+ [16] withr_3.0.0               prettyunits_1.2.0         gridExtra_2.3            
+ [19] progressr_0.14.0          cli_3.6.2                 spatstat.explore_3.2-7   
+ [22] fastDummies_1.7.3         labeling_0.4.3            sass_0.4.9               
+ [25] mvtnorm_1.2-4             spatstat.data_3.0-4       blme_1.0-5               
+ [28] ggridges_0.5.6            pbapply_1.7-2             parallelly_1.37.1        
+ [31] rstudioapi_0.16.0         generics_0.1.3            shape_1.4.6.1            
+ [34] gtools_3.9.5              ica_1.0-3                 spatstat.random_3.2-3    
+ [37] Matrix_1.6-5              ggbeeswarm_0.7.2          fansi_1.0.6              
+ [40] abind_1.4-5               lifecycle_1.0.4           yaml_2.3.8               
+ [43] gplots_3.1.3.1            SparseArray_1.2.4         Rtsne_0.17               
+ [46] grid_4.3.2                promises_1.3.0            dqrng_0.3.2              
+ [49] crayon_1.5.2              miniUI_0.1.1.1            lattice_0.22-6           
+ [52] beachmat_2.18.1           cowplot_1.1.3             pillar_1.9.0             
+ [55] knitr_1.46                ComplexHeatmap_2.18.0     metapod_1.10.1           
+ [58] rjson_0.2.21              boot_1.3-30               corpcor_1.6.10           
+ [61] future.apply_1.11.2       codetools_0.2-20          leiden_0.4.3.1           
+ [64] glue_1.7.0                data.table_1.15.4         Rdpack_2.6               
+ [67] vctrs_0.6.5               png_0.1-8                 spam_2.10-0              
+ [70] gtable_0.3.5              cachem_1.0.8              xfun_0.43                
+ [73] rbibutils_2.2.16          S4Arrays_1.2.1            mime_0.12                
+ [76] survival_3.6-4            iterators_1.0.14          statmod_1.5.0            
+ [79] bluster_1.12.0            fitdistrplus_1.1-11       ROCR_1.0-11              
+ [82] nlme_3.1-164              pbkrtest_0.5.2            EnvStats_2.8.1           
+ [85] progress_1.2.3            RcppAnnoy_0.0.22          rprojroot_2.0.4          
+ [88] TMB_1.9.11                bslib_0.7.0               irlba_2.3.5.1            
+ [91] vipor_0.4.7               KernSmooth_2.23-22        colorspace_2.1-0         
+ [94] DESeq2_1.42.1             tidyselect_1.2.1          compiler_4.3.2           
+ [97] git2r_0.33.0              BiocNeighbors_1.20.2      DelayedArray_0.28.0      
+[100] plotly_4.10.4             caTools_1.18.2            scales_1.3.0             
+[103] remaCor_0.0.18            lmtest_0.9-40             digest_0.6.35            
+[106] goftest_1.2-3             presto_1.0.0              spatstat.utils_3.0-4     
+[109] minqa_1.2.6               variancePartition_1.32.5  rmarkdown_2.26           
+[112] aod_1.3.3                 RhpcBLASctl_0.23-42       XVector_0.42.0           
+[115] htmltools_0.5.8.1         pkgconfig_2.0.3           lme4_1.1-35.3            
+[118] sparseMatrixStats_1.14.0  highr_0.10                fastmap_1.1.1            
+[121] rlang_1.1.3               GlobalOptions_0.1.2       htmlwidgets_1.6.4        
+[124] shiny_1.8.1.1             DelayedMatrixStats_1.24.0 farver_2.1.2             
+[127] jquerylib_0.1.4           zoo_1.8-12                jsonlite_1.8.8           
+[130] BiocParallel_1.36.0       BiocSingular_1.18.0       RCurl_1.98-1.14          
+[133] GenomeInfoDbData_1.2.11   dotCall64_1.1-1           munsell_0.5.1            
+[136] Rcpp_1.0.12               reticulate_1.36.1         stringi_1.8.4            
+[139] zlibbioc_1.48.2           MASS_7.3-60.0.1           plyr_1.8.9               
+[142] parallel_4.3.2            listenv_0.9.1             deldir_2.0-4             
+[145] splines_4.3.2             tensor_1.5                hms_1.1.3                
+[148] locfit_1.5-9.9            igraph_2.0.3              spatstat.geom_3.2-9      
+[151] RcppHNSW_0.6.0            reshape2_1.4.4            ScaledMatrix_1.10.0      
+[154] evaluate_0.23             nloptr_2.0.3              tzdb_0.4.0               
+[157] foreach_1.5.2             httpuv_1.6.15             RANN_2.6.1               
+[160] polyclip_1.10-6           future_1.33.2             clue_0.3-65              
+[163] scattermore_1.2           rsvd_1.0.5                broom_1.0.5              
+[166] xtable_1.8-4              fANCOVA_0.6-1             RSpectra_0.16-1          
+[169] later_1.3.2               lmerTest_3.1-3            glmmTMB_1.1.9            
+[172] beeswarm_0.4.0            cluster_2.1.6             workflowr_1.7.1          
+[175] timechange_0.3.0          globals_0.16.3           </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+https://docs.mathjax.org/en/latest/web/configuration.html. This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
