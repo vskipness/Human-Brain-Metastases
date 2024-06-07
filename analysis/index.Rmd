@@ -9,11 +9,19 @@ editor_options:
   chunk_output_type: console
 ---
 
-### snRNA-seq overview
-merge human brain metastasis sample files and identify major cell populations
+### snRNA-seq analysis
+overview of major cell types present in the data set
 [link](snRNA-seq_overview.html)
 
+immune cell analysis 
+[link](snRNA-seq_immune_cell_analysis.html)
 
 
+### scRNA-seq analysis
+extraction of T cells and fibroblasts from the data
+[link](scRNA-seq_overview.html)
+
+T cell analysis
+[link]
 
 

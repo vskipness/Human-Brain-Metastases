@@ -1,0 +1,377 @@
+---
+title: "scRNA-seq initial overview"
+author: "Vanessa Skipness"
+date: "Jun 6 2024"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+--> enriched for fibroblasts and sorted for T cells but opened the gate for CD45+ cells in general
+
+## Load Packages
+```{r Load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(purrr)
+  library(here)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  #library(runSeurat3)
+  #library("ExploreSCdataSeurat3")
+  library(scran)
+  library(pheatmap)
+  library(CellMixS)
+  library(muscat)
+  library(edgeR)
+  library(patchwork)
+  library(ggplot2)
+  library(dplyr)
+  library(ggrepel)
+  library(circlize)
+})
+
+```
+
+## Load Input Data
+
+```{r Load and Merge Sample Files}
+basedir <- here()
+
+CreateSampleFile <- function(filepaths, samplename){
+  a <- readRDS(file = paste0(basedir, filepaths[1]))
+  b <- readRDS(file = paste0(basedir, filepaths[2]))
+  x <- merge(a, b)
+  return(x)
+}
+
+#stroma hbt_265
+filepaths <- c("/data/scRNA-seq/340821_30-7_20240116_Hu_HBT_265_Stroma_seurat.rds", "/data/scRNA-seq/340821_31-8_20240116_Hu_HBT_265_Stroma_seurat.rds")
+hbt_265_stroma <- CreateSampleFile(filepaths, "hbt_265_stroma")
+
+#stroma hbt_266
+filepaths <- c("/data/scRNA-seq/340821_27-4_20240116_Hu_HBT_266_Stroma_seurat.rds", "/data/scRNA-seq/340821_28-5_20240116_Hu_HBT_266_Stroma_seurat.rds")
+hbt_266_stroma <- CreateSampleFile(filepaths, "hbt_266_stroma")
+
+hbt_166_stroma <- readRDS(file = paste0(basedir, "/data/scRNA-seq/340821_25-2_20240116_Hu_HBT_166_Stroma_seurat.rds"))
+hbt_166_immune <- readRDS(file = paste0(basedir, "/data/scRNA-seq/340821_26-3_20240116_Hu_HBT_166_CD45_seurat.rds"))
+hbt_265_immune <- readRDS(file = paste0(basedir, "/data/scRNA-seq/340821_32-9_20240116_Hu_HBT_265_CD45_seurat.rds"))
+hbt_266_immune <- readRDS(file = paste0(basedir, "/data/scRNA-seq/340821_29-6_20240116_Hu_HBT_266_CD45_seurat.rds"))
+```
+
+## Preprocess Input Data
+
+```{r Add sample info and save files}
+#Add Sample Info
+addInfo <- function(seurat, ID, name, celltype){
+  a <- seurat@meta.data
+  a$ID <- ID
+  a$name <- name
+  a$celltype <- celltype
+  b <- subset(a, select = c("ID", "name", "celltype"))
+  seurat <- AddMetaData(seurat, b)
+  return(seurat)
+}
+hbt_166_immune <- addInfo(hbt_166_immune, "hbt_166", "BrM-Breast-1", "Immune")
+hbt_166_stroma <- addInfo(hbt_166_stroma, "hbt_166", "BrM-Breast-1", "Stroma")
+hbt_265_immune <- addInfo(hbt_265_immune, "hbt_265", "BrM-Melanoma-1", "Immune")
+hbt_265_stroma <- addInfo(hbt_265_stroma, "hbt_265", "BrM-Melanoma-1", "Stroma")
+hbt_266_immune <- addInfo(hbt_266_immune, "hbt_266", "BrM-NET", "Immune")
+hbt_266_stroma <- addInfo(hbt_266_stroma, "hbt_266", "BrM-NET", "Stroma")
+```
+
+## Merge Files
+
+```{r Create merged files}
+processing <- function(x){
+  x <- NormalizeData(object = x)
+  x <- FindVariableFeatures(object = x)
+  x <- ScaleData(object = x, verbose = FALSE)
+  x <- RunPCA(object = x, npcs = 30, verbose = FALSE)
+  #ElbowPlot(x, ndims = 30)
+  x <- FindNeighbors(object = x, reduction = "pca", dims = 1:30)
+  res <- c(0.6,0.4,0.2,0.1)
+  for (i in 1:length(res)) {
+    x <- FindClusters(object = x, resolution = res[i],
+                         random.seed = 1234)
+  }
+  x <- RunUMAP(object = x, reduction = "pca", dims = 1:30)
+  return(x)
+}
+
+#samples.combined <- merge(hbt_166_immune, y = c(hbt_166_stroma, hbt_265_immune, hbt_265_stroma, hbt_266_immune, hbt_266_stroma), add.cell.ids = c("hbt_166_immune", "hbt_166_stroma", "hbt_265_immune", "hbt_265_stroma", "hbt_266_immune", "hbt_266_stroma"), project = "samples_combined")
+
+stroma <- merge(hbt_166_stroma, y = c(hbt_265_stroma, hbt_266_stroma), add.cell.ids = c("hbt_166", "hbt_265", "hbt_266"), project = "stroma_combined")
+immune <- merge(hbt_166_immune, y = c(hbt_265_immune, hbt_266_immune), add.cell.ids = c("hbt_166", "hbt_265", "hbt_266"), project = "immune_combined")
+
+rm(hbt_166_stroma, hbt_265_stroma, hbt_266_stroma, hbt_166_immune, hbt_265_immune, hbt_266_immune)
+
+stroma <- processing(stroma)
+immune <- processing(immune)
+#samples.combined <- processing(samples.combined)
+
+DimPlot(stroma, group.by = "ID")
+DimPlot(immune, group.by = "ID")
+#DimPlot(samples.combined, group.by = "ID")
+#Idents(samples.combined) <- samples.combined$RNA_snn_res.0.1
+#DimPlot(samples.combined)
+```
+
+## identification of T cells
+
+```{r find T cell cluster, fig.height=20, fig.width=20}
+genes <- data.frame(gene = rownames(immune)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("PTPRC", "CD3E", "CD8A", "CD4", "CD14", "FCGR3A", "CD163", "MS4A6A", "MS4A7" , "HLA-DRA",  "ITGAX", "CCL3", "CCL4", "MKI67", "FOSB", "NR4A2", "IL7R",  "CD2", "MS4A1", "BANK1", "CD11C", "MZB1", "IGHG1", "ERBB2", "KRT7", "KRT8", "PMEL", "TPH1")) %>%
+  left_join(., genes, by = "geneID") 
+
+FeaturePlot(immune, features = selGenes$gene)
+```
+
+```{r find marker genes immune cells}
+Idents(immune) <- immune$RNA_snn_res.0.1
+
+all.markers <- FindAllMarkers(immune, min.pct = 0.25, only.pos = TRUE)
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top20
+top20
+```
+4 -> B cells
+7 -> Plasma cells
+8 -> Plasma cells
+9 -> Tumor
+10 -> Plasma cells
+11 -> Monocytes/Neutrophils/DCs?
+12 -> Monocytes/Neutrophils
+13 -> Basophils
+
+```{r Dimplot immune cells, fig.height=5, fig.width=13}
+Idents(immune) <- immune$RNA_snn_res.0.1
+p1 <- DimPlot(immune, label = T)
+p2 <- DimPlot(immune, group.by = "name")
+p1 + p2
+
+Tcells <- subset(immune, idents = c("0", "1", "2", "3", "5", "6"))
+```
+
+## identification of fibroblasts
+
+```{r find fibroblast cluster, fig.height=20, fig.width=20}
+genes <- data.frame(gene = rownames(stroma)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = rev(c("FN1", "COL1A1", "COL1A2", "RGS5",  "MCAM", "ACTA2", "KCNJ8",  "TAGLN", "IGFBP2", "TIMP1", "ITGA1", "PDGFRB", "TGFB3", "ERBB2", "KRT7", "KRT8", "PMEL", "TPH1"))) %>%
+  left_join(., genes, by = "geneID")
+
+selGenes <- data.frame(geneID = c("PTPRC", "CD163", "ADAP2", "CD14", "MS4A1", "BANK1", "MZB1", "IGHG1", "CD2", "BCL11B", "PDGFRB", "CARMN", "EGFL7", "VWF", "PRUNE2", "MOG", "ARPP21", "CHD5", "PTPRZ1", "GFAP", "HSPA1A", "HSPA1B", "ERBB2", "KRT7", "KRT8", "PMEL", "TPH1")) %>%
+  left_join(., genes, by = "geneID")  
+
+FeaturePlot(stroma, features = selGenes$gene)
+
+```
+
+```{r find marker genes stroma}
+Idents(stroma) <- stroma$RNA_snn_res.0.1
+
+all.markers <- FindAllMarkers(stroma, min.pct = 0.25, only.pos = TRUE)
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top20
+
+top20
+```
+0 -> Tumor
+1 -> Tumor
+2 -> Tumor
+4 -> T cells
+5 -> Tumor
+6 -> B cells
+7 -> Brain
+8 -> Tumor
+9 -> endothelial cells
+10 -> plasma cells
+11 -> Tumor
+12 -> Brain
+
+```{r Dimplot stroma, fig.height=5, fig.width=13}
+Idents(stroma) <- stroma$RNA_snn_res.0.1
+p1 <- DimPlot(stroma, label = T)
+p2 <- DimPlot(stroma, group.by = "name")
+p1 + p2
+
+Fibroblasts <- subset(stroma, idents = "3")
+```
+
+## save files
+
+```{r saving files}
+saveRDS(Fibroblasts, file = paste0(basedir, "/data/scRNA-seq/Fibroblasts.rds"))
+saveRDS(Tcells, file = paste0(basedir, "/data/scRNA-seq/Tcells.rds"))
+```
+
+## Option B
+
+--> get T cells and fibroblasts after merging and integrating all cells
+
+!!not done!! did not run code
+
+```{r  check gene expression of merged file, fig.height=20, fig.width=20, include=T, eval=F}
+genes <- data.frame(gene = rownames(samples.combined)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("PTPRC", "CD163", "ADAP2", "CD14", "MS4A1", "BANK1", "MZB1", "IGHG1", "CD2", "BCL11B", "PDGFRB", "CARMN", "EGFL7", "VWF", "PRUNE2", "MOG", "ARPP21", "CHD5", "PTPRZ1", "GFAP", "HSPA1A", "HSPA1B", "ERBB2", "KRT7", "KRT8", "PMEL", "TPH1")) %>%
+  left_join(., genes, by = "geneID")
+
+FeaturePlot(samples.combined, features = selGenes$gene)
+
+```
+--> might make sense to go from here again and reembedd without first integrating
+
+
+
+```{r integration of combined sample file, include=T, eval=F}
+sample.list <- SplitObject(samples.combined, split.by = "ID")
+sample.list <- lapply(X = sample.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+features <- SelectIntegrationFeatures(object.list = sample.list)
+sample.anchors <- FindIntegrationAnchors(object.list = sample.list, anchor.features = features)
+samples.integrated <- IntegrateData(anchorset = sample.anchors)
+DefaultAssay(samples.integrated) <- "integrated"
+
+x <- ScaleData(samples.integrated, verbose = FALSE)
+x <- RunPCA(x, npcs = 30, verbose = FALSE)
+x <- RunUMAP(x, reduction = "pca", dims = 1:30)
+samples.integrated <- FindNeighbors(x, reduction = "pca", dims = 1:30)
+res <- c(0.05, 0.1,0.2,0.4,0.6,0.8, 1, 1.2)
+for (i in 1:length(res)) {
+ samples.integrated <- FindClusters(object = samples.integrated, resolution = res[i], random.seed = 1234)
+}
+```
+
+
+```{r DimPlots of integrated file vs non integrated, fig.height=5, fig.width=14, include=T, eval=F}
+DefaultAssay(samples.integrated) <- "integrated"
+
+DimPlot(samples.combined, reduction = "umap", group.by = "name") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+                  axis.title.x = element_blank(),
+                  axis.title.y = element_blank(),
+                  axis.text.x = element_blank(),
+                  axis.text.y = element_blank()) 
+
+DimPlot(samples.integrated, reduction = "umap", group.by = "name") +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+                  axis.title.x = element_blank(),
+                  axis.title.y = element_blank(),
+                  axis.text.x = element_blank(),
+                  axis.text.y = element_blank()) 
+
+Idents(samples.integrated) <- samples.integrated$integrated_snn_res.0.4
+DimPlot(samples.integrated, reduction = "umap", label = T) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+                  axis.title.x = element_blank(),
+                  axis.title.y = element_blank(),
+                  axis.text.x = element_blank(),
+                  axis.text.y = element_blank()) 
+
+#p1 + p2 + p3 + plot_annotation(title = "not integrated/integrated/resolution 0.4", theme = ggplot2::theme(plot.title = element_text(hjust = 0.5)))
+
+```
+
+
+
+```{r Find markers and annotation clusters, eval=FALSE, include=TRUE}
+
+Idents(samples.integrated) <- samples.integrated$integrated_snn_res.0.4
+DefaultAssay(samples.integrated) <- "RNA"
+
+all.markers <- FindAllMarkers(samples.integrated)
+
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+top10
+
+#conserved.markers.res0.4$`Cluster 14`
+
+samples.integrated$label <- "-"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "0")] <- "CD4 T cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "1")] <- "Cytotoxic T cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "2")] <- "Melanoma"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "3")] <- "Carcinoma"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "4")] <- "Tregs"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "5")] <- "B cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "6")] <- "Fibroblasts-1"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "7")] <- "Carcinoma"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "8")] <- "Plasma cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "9")] <- "Myeloid cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "10")] <- "NK cells"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "11")] <- "Fibroblasts-2"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "12")] <- "Unknown"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "13")] <- "Neurons"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "14")] <- "Astrocytes/Microglia"
+samples.integrated$label[which(samples.integrated$integrated_snn_res.0.4 == "15")] <- "Endothelial cells"
+
+Idents(samples.integrated) <- samples.integrated$label
+DimPlot(samples.integrated)
+```
+
+
+```{r eval=FALSE, fig.height=15, fig.width=15, include=T, eval=F}
+
+genes <- data.frame(gene = rownames(samples.integrated)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes1 <- data.frame(geneID = c("MAGEB2", "KRT7", "KRT8", "PMEL", "MSR1", "PTPRC", "MOG", "EGFL7", "PDGFRB", "IGHG1", "CACNA1A", "CD3D")) %>%
+  left_join(., genes, by = "geneID")
+selGenes2 <- data.frame(geneID = c("CD3E", "CD8A", "CD4", "PDGFRA", "PDGFRB", "MYH11", "ACTA2", "CCL19", "CCR7", "PECAM1", "CACNA1A", "KRT7")) %>%
+  left_join(., genes, by = "geneID")
+selGenes3 <- data.frame(geneID = c("COL1A1", "COL1A2", "COL2A1", "COL3A1", "COL4A1", "COL4A2", "COL5A1", "COL5A2", "COL6A1", "COL6A2", "COL7A1", "COL8A1")) %>%
+  left_join(., genes, by = "geneID")
+
+FeaturePlot(samples.integrated, features = selGenes1$gene, cols = c("grey", "red"))
+for (i in 1: length(selGenes1$geneID)){ 
+  featureplots1[[i]]$labels$title = selGenes1$geneID[i]
+}
+
+FeaturePlot(samples.integrated, features = selGenes2$gene, cols = c("grey", "red"))
+for (i in 1: length(selGenes2$geneID)){
+  featureplots2[[i]]$labels$title = selGenes2$geneID[i]
+}
+
+FeaturePlot(samples.integrated, features = selGenes3$gene, cols = c("grey", "red"))
+for (i in 1: length(selGenes3$geneID)){
+  featureplots3[[i]]$labels$title = selGenes3$geneID[i]
+}
+
+#genes %>% filter(grepl('COL8', gene))
+```
+
+## Session Info
+
+```{r Session Info}
+sessionInfo()
+date()
+```

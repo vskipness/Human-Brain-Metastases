@@ -1,0 +1,186 @@
+---
+title: "snRNA-seq immune cell analysis"
+author: "Vanessa Skipness"
+date: "Jun 6 2024"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+## load packages
+
+```{r Load packages}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(Seurat)
+  library(magrittr)
+  library(purrr)
+  library(here)
+  library(SingleCellExperiment)
+  library(RColorBrewer)
+  library(viridis)
+  library(ggsci)
+  library(scater)
+  #library(runSeurat3)
+  #library("ExploreSCdataSeurat3")
+  library(scran)
+  library(pheatmap)
+  library(CellMixS)
+  library(muscat)
+  library(edgeR)
+  library(patchwork)
+  library(ggplot2)
+  library(dplyr)
+  library(ggrepel)
+  library(circlize)
+})
+
+```
+
+## set dir and read input data
+
+```{r load file}
+basedir <- here()
+immune <- readRDS(file = paste0(basedir, "/data/snRNA-seq/snRNA-seqimmune.rds"))
+```
+
+## immune cell overview before integration
+
+```{r overview of immune cells}
+Idents(immune) <- immune$sample
+immune$sample <- factor(immune$sample, levels = c("BrM-Lung-1", "BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET"))
+
+table(immune$sample)
+colSample <- c("hotpink", "darkorchid4", "royalblue1", "aquamarine4")
+names(colSample) <- c("BrM-Lung-1", "BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET")
+
+DimPlot(immune, reduction = "umap", cols=colSample, group.by = "sample",
+        shuffle=T,pt.size=0.6, )+
+  theme_void()
+```
+
+## integration of immune cells across patients
+
+```{r integration of immune cells before integration}
+sample.list <- SplitObject(immune, split.by = "sample")
+sample.list <- lapply(X = sample.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+features <- SelectIntegrationFeatures(object.list = sample.list)
+sample.anchors <- FindIntegrationAnchors(object.list = sample.list, anchor.features = features)
+immune.integrated <- IntegrateData(anchorset = sample.anchors)
+DefaultAssay(immune.integrated) <- "integrated"
+
+x <- ScaleData(immune.integrated, verbose = FALSE)
+x <- RunPCA(x, npcs = 30, verbose = FALSE)
+x <- RunUMAP(x, reduction = "pca", dims = 1:30)
+immune.integrated <- FindNeighbors(x, reduction = "pca", dims = 1:30)
+res <- c(0.05, 0.1,0.2,0.4,0.6,0.8, 1, 1.2)
+for (i in 1:length(res)) {
+ immune.integrated <- FindClusters(object = immune.integrated, resolution = res[i], random.seed = 1234)
+}
+rm(x, sample.anchors)
+
+```
+
+## visualization and annotation of immune cells
+
+```{r assign colors and visualize immune cells, fig.height=4, fig.width=6}
+DefaultAssay(immune.integrated) <- "integrated"
+Idents(immune.integrated) <- immune.integrated$sample
+immune.integrated$sample <- factor(immune.integrated$sample, levels = c("BrM-Lung-1", "BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET"))
+
+DimPlot(immune.integrated, reduction = "umap", cols=colSample, group.by = "sample",
+        shuffle=T,pt.size=0.4)+
+  theme_void()
+
+DimPlot(immune.integrated, reduction = "umap", cols=colSample, split.by = "sample",
+        shuffle=T,pt.size=0.4)+
+  theme_void()
+
+Idents(immune.integrated) <- immune.integrated$integrated_snn_res.0.1
+DimPlot(immune.integrated, reduction = "umap", label = T,
+        shuffle=T,pt.size=0.4, )+
+  theme_void()
+```
+
+```{r find markers}
+Idents(immune.integrated) <- immune.integrated$RNA_snn_res.0.1
+all.markers <- FindAllMarkers(immune.integrated, min.pct = 0.25, only.pos = TRUE)
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 30, wt = avg_log2FC) -> top30
+
+top30
+```
+
+
+```{r immune cell annotation and color assignment, fig.height=4, fig.width=5}
+immune.integrated$celltype <- "-"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "0")] <- "Mφ"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "1")] <- "T cells/NK cells"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "2")] <- "MDMs"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "3")] <- "Plasma cells"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "4")] <- "Neutrophils"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "5")] <- "Proliferating Mφ"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "6")] <- "B cells"
+immune.integrated$celltype[which(immune.integrated$integrated_snn_res.0.1 == "7")] <- "Dendritic cells"
+
+immune.integrated$celltype <- factor(immune.integrated$celltype, levels = c("MDMs", "Proliferating Mφ", "Mφ", "Neutrophils", "Dendritic cells", "T cells/NK cells", "B cells", "Plasma cells"))
+
+Idents(immune.integrated) <- immune.integrated$celltype
+
+colCelltype <- c("royalblue4", "royalblue1", "steelblue1", "aquamarine4", "lightpink1", "palevioletred3", "mediumpurple1", "darkorchid4" )
+names(colCelltype) <- c("MDMs", "Proliferating Mφ", "Mφ", "Neutrophils", "Dendritic cells", "T cells/NK cells", "B cells", "Plasma cells")
+
+DimPlot(immune.integrated, reduction = "umap", cols=colCelltype, group.by = "celltype",
+        shuffle=T,pt.size=0.4)+
+  theme_void()
+
+```
+
+## dotplot of immune cells
+
+```{r dot plot immune cells, fig.height=4, fig.width=8}
+Idents(immune.integrated) <- immune.integrated$celltype
+DefaultAssay(immune.integrated) <- "RNA"
+genes <- data.frame(gene = rownames(immune.integrated)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("PTPRC", "CD14", "FCGR3A", "CD163", "MS4A6A", "MS4A7" , "HLA-DRA",  "ITGAX", "CCL3", "CCL4", "MKI67", "FOSB", "NR4A2", "IL7R",  "CD2", "MS4A1", "BANK1", "CD11C", "MZB1", "IGHG1")) %>%
+  left_join(., genes, by = "geneID")   
+
+##took out MERTK, CD38
+
+DotPlot(immune.integrated, assay = "RNA", features = (selGenes$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = (selGenes$gene), labels = (selGenes$geneID)) +
+  xlab("") + ylab("")
+
+```
+
+## saving file
+
+```{r save files}
+saveRDS(immune.integrated, file = paste0(basedir, "/data/snRNA-seq/immune_integrated.rds"))
+```
+
+## session info
+
+```{r Session Info}
+sessionInfo()
+date()
+```

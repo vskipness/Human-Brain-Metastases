@@ -1,0 +1,352 @@
+---
+title: "scRNA-seq T cell analysis"
+author: "Vanessa Skipness"
+date: "Jun 6 2024"
+output: 
+  html_document:
+    keep_md: true
+    toc: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+options(width = 100)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, dev = c("png", "pdf"))
+seed <- 1234
+```
+
+
+## Load Packages
+
+```{r Load packages, echo = TRUE}
+
+library("Seurat")
+library("BiocManager")
+library("devtools")
+#library("ExploreSCdataSeurat3")
+library("patchwork")
+library("SeuratObject")
+library("utilities")
+library("ggplot2")
+library("metap") 
+library("dplyr")
+library("tidyverse")
+library("forcats")
+library("ggrepel")
+library(destiny)
+library(org.Hs.eg.db)
+library(ggupset)
+library(VennDiagram)
+library(NCmisc)
+
+```
+
+
+## set directory and load files
+
+```{r load T cell data}
+basedir <- here()
+
+scData <- readRDS(file = paste0(basedir, "/data/scRNA-seq/samples_integrated.rds"))
+Idents(scData) <- scData$integrated_snn_res.0.4
+DimPlot(scData, label = T)
+Tcells<- subset(scData, idents = c("1", "10", "0", "4"))
+DefaultAssay(Tcells) <- "RNA"
+rm(scData)
+```
+
+```{r Plots of T cells}
+DimPlot(Tcells, reduction = "umap", group.by = "sample")
+DimPlot(Tcells, reduction = "umap")
+
+table(Tcells$sample)
+```
+
+## integration across patients
+
+```{r integration of T cells}
+sample.list <- SplitObject(Tcells, split.by = "ID")
+sample.list <- lapply(X = sample.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+features <- SelectIntegrationFeatures(object.list = sample.list)
+sample.anchors <- FindIntegrationAnchors(object.list = sample.list, anchor.features = features)
+Tcells.integrated <- IntegrateData(anchorset = sample.anchors)
+DefaultAssay(Tcells.integrated) <- "integrated"
+
+x <- ScaleData(Tcells.integrated, verbose = FALSE)
+x <- RunPCA(x, npcs = 30, verbose = FALSE)
+x <- RunUMAP(x, reduction = "pca", dims = 1:30)
+Tcells.integrated <- FindNeighbors(x, reduction = "pca", dims = 1:30)
+res <- c(0.05, 0.1,0.2,0.4,0.6,0.8, 1, 1.2)
+for (i in 1:length(res)) {
+ Tcells.integrated <- FindClusters(object = Tcells.integrated, resolution = res[i], random.seed = 1234)
+}
+```
+
+
+```{r Plots of T cells integrated}
+DimPlot(Tcells.integrated, reduction = "umap", label = F, group.by = "name", pt.size = 0.4, shuffle = T) +
+  theme_void()
+Idents(Tcells.integrated) <- Tcells.integrated$integrated_snn_res.0.4
+
+table(Tcells.integrated$integrated_snn_res.0.4, Tcells.integrated$sample)
+
+```
+
+## cluster annotation
+
+```{r Find all markers of clusters and annotation T cells, include=T, eval=F}
+
+Tcells.integrated$label <- "-"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "0")] <- "Tm CD4"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "1")] <- "Tm CD8"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "2")] <- "Treg"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "3")] <- "Tstr"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "4")] <- "Ts-l CD4"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "5")] <- "Tex CD8"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "6")] <- "Tex CD4"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "7")] <- "NKT-like"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "8")] <- "Tinf"
+Tcells.integrated$label[which(Tcells.integrated$integrated_snn_res.0.4 == "9")] <- "NK"
+
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+colCelltype <- c("slategray2", "steelblue1", "royalblue2", "royalblue4", "paleturquoise3", "turquoise4", "lightpink1", "palevioletred", "orchid4", "purple4")
+
+names(colCelltype) <-c("Ts-l CD4", "Treg", "Tm CD4", "Tex CD4", "Tm CD8", "Tex CD8",  "Tinf", "Tstr", "NKT-like", "NK")
+
+```
+
+
+```{r Markers T cells}
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+DefaultAssay(Tcells.integrated) <- "RNA"
+
+all.markers <- FindAllMarkers(Tcells.integrated, min.pct = 0.25, only.pos = TRUE)
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 20, wt = avg_log2FC) -> top20
+
+top20
+```
+
+```{r Dimplot T cells annotated, fig.height=4, fig.width=6}
+
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+levels(Tcells.integrated) <- c("Ts-l CD4", "Treg", "Tm CD4", "Tex CD4", "Tm CD8", "Tex CD8",  "Tinf", "Tstr", "NKT-like", "NK")
+
+DimPlot(Tcells.integrated, reduction = "umap", label = F, cols = colCelltype,
+        pt.size=0.4, shuffle = T)+
+  theme_void()
+
+```
+
+
+```{r feature plot T cells, fig.height=4, fig.width=5}
+DefaultAssay(Tcells.integrated) <- "RNA"
+
+genes <- data.frame(gene = rownames(Tcells.integrated)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes <- data.frame(geneID = c("CD8A", "CD4", "CCR7", "IFIT3", "CXCL13", "FOXP3", "KLRF1", "IL7R")) %>%
+  left_join(., genes, by = "geneID")
+
+#genes %>% filter(grepl('RGS5', gene))
+
+for (i in 1:length(selGenes$gene)){
+  print(FeaturePlot(Tcells.integrated, features = selGenes$gene[i], cols = c("grey", "red"), pt.size = 0.4, min.cutoff = 0) +
+    theme_void() + 
+    labs(title = selGenes$geneID[i]) + 
+    ggtitle(selGenes$geneID[i]) + 
+    theme(plot.title = element_text(hjust = 0.5, size = 25)))
+}
+```
+
+
+
+```{r Heatmap T cells, fig.height=15, fig.width=20}
+
+library(RColorBrewer)
+library(pheatmap)
+library(ComplexHeatmap)
+
+all.markers %>%
+    group_by(cluster) %>%
+    top_n(n = 10, wt = avg_log2FC) -> top10
+top10
+DefaultAssay(Tcells.integrated) <- "RNA"
+
+Tcells.integrated<- NormalizeData(object = Tcells.integrated)
+Tcells.integrated <- FindVariableFeatures(object = Tcells.integrated)
+Tcells.integrated <- ScaleData(object = Tcells.integrated, verbose = FALSE)
+
+mapal <- colorRampPalette(RColorBrewer::brewer.pal(11,"RdBu"))(256)
+
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+DoHeatmap(Tcells.integrated, assay = "RNA", features = top10$gene, label = F) + scale_fill_gradientn(colours = rev(mapal))
+
+
+```
+
+```{r Generate Dotplot T cells-2 breiter, fig.height=4, fig.width=5.5}
+#Dot Plot
+
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+#levels(Tcells.integrated) <- rev(c("Ts-l CD4",  "Tm CD4", "Tm CD8", "Tex CD4", "Tex CD8", "Treg", "Tinf", "Tstr", "NKT", "NK"))
+
+levels(Tcells.integrated) <- rev(c("Ts-l CD4", "Treg", "Tm CD4", "Tex CD4", "Tm CD8", "Tex CD8",  "Tinf", "Tstr", "NKT", "NK"))
+
+genes <- data.frame(gene = rownames(Tcells.integrated)) %>%
+  mutate(geneID = gsub("^.*\\.", "", gene))
+
+selGenes1 <- data.frame(geneID = c("CD3E", "CD4", "CD8A", "IL7R", "ANXA1","NKG7", "CCL4", "CCL5", "GZMK",  "CD28",  "CXCL13", "TOX", "PDCD1", "LAG3","CTLA4", "FAS","ICOS",  "LTB", "FOXP3" , "IL2RA", "CCR7", "TCF7", "SELL", "IFIT2", "IFIT3", "HSPA1A", "HSPA1B", "FCER1G", "KLRD1", "KLRB1", "FCGR3A", "KLRF1", "NCR1", "NCAM1")) %>%
+  left_join(., genes, by = "geneID")
+
+
+selGenes2 <- data.frame(geneID = c("LAG3", "FAS", "CCR7", "HLA-DRA", "ICOS", "CD4", "CD8A", "IL7R", "IL2RA", "PDCD1", "B3GAT1", "CD28")) %>%
+  left_join(., genes, by = "geneID")
+
+selGenes3 <- data.frame(geneID = c( "IL7R", "ANXA1", "CD4", "CD8A", "CXCL13", "TOX", "CTLA4", "FOXP3", "CCR7", "IFIT2", "HSPA1A", "KLRD1", "KLRF1")) %>%
+  left_join(., genes, by = "geneID")
+
+#levels(Immuno.integrated.renamed) <- c("Macrophages-1", "Macrophages-2", "Macrophages-3", "Microglia", "Dendritic Cells", "T Cells/NK Cells", "Plasma Cells", "B cells")
+
+
+p1 <- DotPlot(Tcells.integrated, assay = "RNA", features = (selGenes1$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = (selGenes1$gene), labels = (selGenes1$geneID)) +
+  xlab("") + ylab("")
+
+p2 <- DotPlot(Tcells.integrated, assay = "RNA", features = rev(selGenes2$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  #coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = (selGenes2$gene), labels = (selGenes2$geneID)) +
+  ﬁxlab("") + ylab("")
+
+DotPlot(Tcells.integrated, assay = "RNA", features = rev(selGenes3$gene), scale = T, cluster.idents = F) +
+  scale_color_viridis_c() +
+  coord_flip() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(breaks = rev(selGenes3$gene), labels = rev(selGenes3$geneID)) +
+  xlab("") + ylab("")
+
+p1
+
+p2
+
+p3
+
+```
+
+
+```{r stacked barplots T cells, fig.height=4, fig.width=5}
+#stacked barplots
+Idents(Tcells.integrated) <- Tcells.integrated$label
+
+group <- c(Tcells.integrated$name)
+
+levels(Tcells.integrated) <- c("Ts-l CD4", "Treg", "Tm CD4", "Tex CD4", "Tm CD8", "Tex CD8",  "Tinf", "Tstr", "NKT", "NK")
+
+colCelltype <- c("slategray2", "steelblue1", "royalblue2", "royalblue4", "paleturquoise3", "turquoise4", "lightpink1", "palevioletred", "orchid4", "purple4")
+
+names(colCelltype) <-c("Ts-l CD4", "Treg", "Tm CD4", "Tex CD4", "Tm CD8", "Tex CD8",  "Tinf", "Tstr", "NKT", "NK")
+
+#levels(Tcells.integrated) <- (c("Ts-l CD4",  "Tm CD4", "Tm CD8", "Tex CD4", "Tex CD8", "Treg", "Tinf", "Tstr", "NKT", "NK"))
+
+cluster_labels <- Idents(Tcells.integrated)
+table.perc <- table(cluster_labels, group)
+table.perc
+
+breast <- as.vector(table.perc[,1]/sum(table.perc[,1]))*100
+melanoma <- as.vector(table.perc[,2]/sum(table.perc[,2]))*100
+net <- as.vector(table.perc[,3]/sum(table.perc[,3]))*100
+
+pooled <- vector()
+for (i in 1:10){
+  pooled[i] <- sum(table.perc[i,])
+}
+
+pooled <- pooled/sum(pooled)*100
+
+groups <- c("BrM-Breast-1", "BrM-Breast-1", "BrM-Breast-1", "BrM-Breast-1", "BrM-Breast-1", 
+            "BrM-Breast-1", "BrM-Breast-1", "BrM-Breast-1","BrM-Breast-1","BrM-Breast-1", 
+            "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", 
+            "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", "BrM-Melanoma-1", 
+            "BrM-NET", "BrM-NET", "BrM-NET", "BrM-NET", "BrM-NET", 
+            "BrM-NET", "BrM-NET", "BrM-NET", "BrM-NET", "BrM-NET", 
+            "Pooled", "Pooled", "Pooled", "Pooled", "Pooled", 
+            "Pooled", "Pooled", "Pooled", "Pooled", "Pooled")
+
+Freq <- c(breast, melanoma, net, pooled)
+
+celltypes <- c(rownames(table.perc),rownames(table.perc),rownames(table.perc),rownames(table.perc))
+
+
+df <- data.frame(celltypes, groups, Freq)
+
+plot <- ggplot(df, aes(x = fct_inorder(groups), y = Freq, fill = fct_inorder(celltypes))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Stacked Barplot Example",
+       x = "",
+       y = "",
+       fill = "") +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) 
+
+plot + geom_vline(xintercept = 0.5, color = "black", linewidth = 0.5) + 
+  geom_hline(yintercept = -1.5, color = "black", linewidth = 0.5) +
+  scale_fill_manual(values=colCelltype)
+
+
+
+```
+
+```{r Bar plot sample proportion, fig.height=4, fig.width=3}
+
+colPal <- c( "#F8766D", "#0CB702", "#00A9FF")
+#stacked barplots
+
+table(Tcells.integrated$name)
+
+sample <- c("BrM-Breast-1", "BrM-Melanoma-1", "BrM-NET")
+
+Freq <- c(5672, 6263, 3795)
+
+Freq <- Freq/sum(Freq)*100
+
+groups <- c("Tcells", "Tcells", "Tcells")
+
+df <- data.frame(groups, sample, Freq)
+
+plot <- ggplot(df, aes(x = fct_inorder(groups), y = Freq, fill = fct_inorder(sample))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Tcells/sample",
+       x = "",
+       y = "",
+       fill = "") +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) 
+
+plot + geom_vline(xintercept = 0.5, color = "black", linewidth = 0.5) + 
+  geom_hline(yintercept = -1.5, color = "black", linewidth = 0.5) +
+  scale_fill_manual(values=colPal)
+
+
+```
+
+
+```{r Session Info}
+sessionInfo()
+date()
+```

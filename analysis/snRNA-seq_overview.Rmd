@@ -59,23 +59,23 @@ CreateSampleFile <- function(filepaths, samplename){
 }
 
 #hbt_89
-filepaths <- c("/data/324341_01-1_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds",
-"/data/324341_02-2_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds")
+filepaths <- c("/data/snRNA-seq/324341_01-1_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds",
+"/data/snRNA-seq/324341_02-2_20230718_Hu_nucseq_HBT_89_GEM_seurat.rds")
 hbt_89 <- CreateSampleFile(filepaths, "hbt_89")
 
 #hbt166
-filepaths <- c("/data/324341_03-3_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds",
-"/data/324341_04-4_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds")
+filepaths <- c("/data/snRNA-seq/324341_03-3_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds",
+"/data/snRNA-seq/324341_04-4_20230718_Hu_nucseq_HBT_166_GEM_seurat.rds")
 hbt_166 <- CreateSampleFile(filepaths, "hbt_166")
 
 #hbt265
-filepaths <- c("/data/324341_05-5_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds",
-"/data/324341_06-6_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds")
+filepaths <- c("/data/snRNA-seq/324341_05-5_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds",
+"/data/snRNA-seq/324341_06-6_20230718_Hu_nucseq_HBT_265_GEM_seurat.rds")
 hbt_265 <- CreateSampleFile(filepaths, "hbt_265")
 
 #hbt266
-filepaths <- c("/data/324341_07-7_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds",
-"/data/324341_08-8_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds")
+filepaths <- c("/data/snRNA-seq/324341_07-7_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds",
+"/data/snRNA-seq/324341_08-8_20230718_Hu_nucseq_HBT_266_GEM_seurat.rds")
 hbt_266 <- CreateSampleFile(filepaths, "hbt_266")
 
 rm(filepaths)
@@ -172,7 +172,7 @@ for (i in 1:length(selGenes$gene)){
 ```
 
 ```{r hematopoietic vs non, fig.height=4, fig.width=8}
-
+##numbers still from integrated data - need to adjust!!
 #Breast
 h <- 71+3625+30+436
 t <- 3367
@@ -287,13 +287,13 @@ fibroblasts <- subset(samples.combined, idents = c("5"))
 ## saving files
 
 ```{r save files}
-saveRDS(hbt_89, file = paste0(basedir, "/data/hbt_89.rds"))
-saveRDS(hbt_166, file = paste0(basedir, "/data/hbt_166.rds"))
-saveRDS(hbt_265, file = paste0(basedir, "/data/hbt_265.rds"))
-saveRDS(hbt_266, file = paste0(basedir, "/data/hbt_266.rds"))
-saveRDS(samples.combined, file = paste0(basedir, "/data/samples_combined.rds"))
-saveRDS(immunecells, file = paste0(basedir, "/data/immune.rds"))
-saveRDS(fibroblasts, file = paste0(basedir, "/data/fibroblasts.rds"))
+saveRDS(hbt_89, file = paste0(basedir, "/data/snRNA-seq/hbt_89.rds"))
+saveRDS(hbt_166, file = paste0(basedir, "/data/snRNA-seq/hbt_166.rds"))
+saveRDS(hbt_265, file = paste0(basedir, "/data/snRNA-seq/hbt_265.rds"))
+saveRDS(hbt_266, file = paste0(basedir, "/data/snRNA-seq/hbt_266.rds"))
+saveRDS(samples.combined, file = paste0(basedir, "/data/snRNA-seq/samples_combined.rds"))
+saveRDS(immunecells, file = paste0(basedir, "/data/snRNA-seq/immune.rds"))
+saveRDS(fibroblasts, file = paste0(basedir, "/data/snRNA-seq/fibroblasts.rds"))
 ```
 
 ## Session Info
